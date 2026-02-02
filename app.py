@@ -4,7 +4,7 @@ from datetime import datetime
 import time
 
 # --- БАЗА ДАННЫХ ---
-conn = sqlite3.connect('final_fix_v16.db', check_same_thread=False)
+conn = sqlite3.connect('ultra_system_v17.db', check_same_thread=False)
 cursor = conn.cursor()
 cursor.execute('''CREATE TABLE IF NOT EXISTS users 
                   (username TEXT PRIMARY KEY, password TEXT, balance REAL DEFAULT 0, 
@@ -12,59 +12,50 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS users
 cursor.execute('CREATE TABLE IF NOT EXISTS logs (user TEXT, duration TEXT, date TEXT, money_gain REAL)')
 conn.commit()
 
-st.title("⚡ SPELLING CONTROL v16")
+st.set_page_config(page_title="SPELLING SYSTEM v17", layout="wide")
 
-# --- ИНИЦИАЛИЗАЦИЯ ПЕРЕМЕННЫХ (FIX ОШИБКИ) ---
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
-if 'user' not in st.session_state:
-    st.session_state.user = ""
-if 'role' not in st.session_state:
-    st.session_state.role = "worker"
+# --- ИНИЦИАЛИЗАЦИЯ (ЧТОБЫ НЕ БЫЛО ОШИБОК) ---
+if 'logged_in' not in st.session_state: st.session_state.logged_in = False
+if 'user' not in st.session_state: st.session_state.user = ""
+if 'role' not in st.session_state: st.session_state.role = "worker"
+if 'active' not in st.session_state: st.session_state.active = False
 
-# --- ЛОГИКА ВХОДА ---
+# --- ВХОД / РЕГИСТРАЦИЯ ---
 if not st.session_state.logged_in:
-    menu = st.sidebar.selectbox("МЕНЮ", ["ВХОД", "РЕГИСТРАЦИЯ"])
-    u = st.text_input("Логин")
-    p = st.text_input("Пароль", type='password')
-    
-    if menu == "РЕГИСТРАЦИЯ" and st.button("СОЗДАТЬ"):
-        try:
-            cursor.execute('INSERT INTO users(username, password) VALUES (?,?)', (u, p))
-            conn.commit()
-            st.success("Аккаунт создан! Переходи во вход.")
-        except: st.error("Ошибка или ник занят")
-
-    if menu == "ВХОД" and st.button("ВОЙТИ"):
-        if u == "admin" and p == "admin777":
-            st.session_state.logged_in = True
-            st.session_state.user = "ADMIN"
-            st.session_state.role = "admin"
-            st.rerun()
-        else:
-            res = cursor.execute("SELECT role, status FROM users WHERE username=? AND password=?", (u, p)).fetchone()
-            if res:
-                if res[1] == "banned":
-                    st.error("ТЫ ЗАБАНЕН")
-                else:
-                    st.session_state.logged_in = True
-                    st.session_state.user = u
-                    st.session_state.role = res[0]
+    st.title("⚡ ВХОД В СИСТЕМУ")
+    tab1, tab2 = st.tabs(["ВХОД", "РЕГИСТРАЦИЯ"])
+    with tab1:
+        u = st.text_input("Логин", key="l_u")
+        p = st.text_input("Пароль", type='password', key="l_p")
+        if st.button("ВОЙТИ"):
+            if u == "admin" and p == "admin777":
+                st.session_state.update({"logged_in": True, "user": "ADMIN", "role": "admin"})
+                st.rerun()
+            else:
+                res = cursor.execute("SELECT role, status FROM users WHERE username=? AND password=?", (u, p)).fetchone()
+                if res and res[1] != "banned":
+                    st.session_state.update({"logged_in": True, "user": u, "role": res[0]})
                     st.rerun()
-            else: st.error("Неверный логин")
+                elif res and res[1] == "banned": st.error("ВЫ ЗАБАНЕНЫ")
+                else: st.error("НЕВЕРНЫЕ ДАННЫЕ")
+    with tab2:
+        nu = st.text_input("Новый логин")
+        np = st.text_input("Новый пароль")
+        if st.button("СОЗДАТЬ АККАУНТ"):
+            try:
+                cursor.execute('INSERT INTO users(username, password) VALUES (?,?)', (nu, np))
+                conn.commit()
+                st.success("Готово! Входи.")
+            except: st.error("Ник занят")
 
-# --- ГЛАВНЫЙ ИНТЕРФЕЙС ---
+# --- ОСНОВНОЙ ИНТЕРФЕЙС ---
 else:
-    user = st.session_state.user
-    role = st.session_state.role
-    
-    st.sidebar.write(f"Вы вошли как: **{user}**")
+    user, role = st.session_state.user, st.session_state.role
+    st.sidebar.title(f"👾 {user}")
     if st.sidebar.button("ВЫЙТИ"):
         st.session_state.logged_in = False
         st.rerun()
 
-    # 1. СТАТУСЫ
-    st.subheader("🟢 СТАТУС")
-    c1, c2, c3 = st.columns(3)
-    if c1.button("В СЕТИ"): cursor.execute("UPDATE users SET user_state='Online' WHERE username=?", (user,)); conn.commit(); st.toast("Статус обновлен")
-    if c2.button("АФК"): cursor.execute("UPDATE users SET user_state='AFK' WHERE username=?", (user,)); conn.commit();
+    # БЛОК 1: ТАЙМЕР И СТАТУС (ВИДЯТ ВСЕ)
+    col1, col2 = st.columns([1, 1])
+    with col1:
