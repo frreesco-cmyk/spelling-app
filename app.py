@@ -3,56 +3,54 @@ import sqlite3
 import pandas as pd
 from datetime import datetime
 
-# База
-conn = sqlite3.connect('team_v20.db', check_same_thread=False)
+# База данных
+conn = sqlite3.connect('team_v21.db', check_same_thread=False)
 cursor = conn.cursor()
 cursor.execute('CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT, balance REAL DEFAULT 0, role TEXT DEFAULT "worker", status TEXT DEFAULT "active", user_state TEXT DEFAULT "Off")')
 cursor.execute('CREATE TABLE IF NOT EXISTS logs (user TEXT, duration TEXT, date TEXT, cash REAL)')
 conn.commit()
 
-st.title("⚡ CONTROL v20")
+st.title("⚡ SYSTEM v21")
 
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
+if 'auth' not in st.session_state:
+    st.session_state.auth = False
 
 # ВХОД
-if not st.session_state.logged_in:
-    u = st.text_input("Login")
-    p = st.text_input("Pass", type='password')
+if not st.session_state.auth:
+    u = st.text_input("Логин")
+    p = st.text_input("Пароль", type='password')
     if st.button("ВОЙТИ"):
         if u == "admin" and p == "admin777":
-            st.session_state.update({"logged_in": True, "user": "ADMIN", "role": "admin"})
+            st.session_state.update({"auth": True, "user": "ADMIN", "role": "admin"})
             st.rerun()
         else:
             res = cursor.execute("SELECT role, status FROM users WHERE username=? AND password=?", (u, p)).fetchone()
             if res and res[1] != "banned":
-                st.session_state.update({"logged_in": True, "user": u, "role": res[0]})
+                st.session_state.update({"auth": True, "user": u, "role": res[0]})
                 st.rerun()
-            else: st.error("Ошибка входа")
+            else: st.error("Ошибка")
     if st.button("РЕГИСТРАЦИЯ"):
         try:
             cursor.execute('INSERT INTO users(username, password) VALUES (?,?)', (u, p))
             conn.commit()
-            st.success("ОК! Жми войти")
-        except: st.error("Ник занят")
+            st.success("ОК")
+        except: st.error("Занято")
 
-# ПАНЕЛЬ
+# ИНТЕРФЕЙС
 else:
     user, role = st.session_state.user, st.session_state.role
-    if st.sidebar.button("ВЫЙТИ"):
-        st.session_state.logged_in = False
+    if st.sidebar.button("ВЫХОД"):
+        st.session_state.auth = False
         st.rerun()
 
     st.write(f"### Юзер: {user}")
     
-    # СТАТУС
-    if st.button("ОНЛАЙН"):
-        cursor.execute("UPDATE users SET user_state='On' WHERE username=?", (user,))
-        conn.commit()
-    
     # ТАЙМЕР
-    if 'active' not in st.session_state: st.session_state.active = False
-    if not st.session_state.active:
+    if 'work' not in st.session_state: st.session_state.work = False
+    if not st.session_state.work:
         if st.button("▶ СТАРТ"):
-            st.session_state.start_t = datetime.now()
-            st.
+            st.session_state.start = datetime.now()
+            st.session_state.work = True
+            st.rerun()
+    else:
+        dur = datetime.now() - st.session_state
