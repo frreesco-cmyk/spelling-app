@@ -1,49 +1,52 @@
 import streamlit as st
 import sqlite3
 
-# База данных
-def get_db():
-    conn = sqlite3.connect('team_v9.db', check_same_thread=False)
-    return conn
-
-conn = get_db()
+# Чистая база данных
+conn = sqlite3.connect('fix_v10.db', check_same_thread=False)
 cursor = conn.cursor()
-cursor.execute('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT, role TEXT DEFAULT "worker")''')
+cursor.execute('CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT, balance REAL DEFAULT 0)')
 conn.commit()
 
-st.title("⚡ SPELLING SYSTEM V9")
+st.header("⚡ ПАНЕЛЬ УПРАВЛЕНИЯ SPELLING")
 
-# Самое важное - меню без лишних вкладок для стабильности
-menu = ["ВХОД", "РЕГИСТРАЦИЯ"]
-choice = st.radio("ВЫБЕРИ ДЕЙСТВИЕ:", menu, horizontal=True)
+# Выбор действия через радио-кнопки (они никогда не исчезают)
+choice = st.sidebar.selectbox("МЕНЮ", ["ВХОД", "РЕГИСТРАЦИЯ"])
 
-if choice == "ВХОД":
-    st.subheader("🔑 АВТОРИЗАЦИЯ")
-    u = st.text_input("Логин", key="login_u")
-    p = st.text_input("Пароль", type="password", key="login_p")
-    if st.button("ВОЙТИ"):
-        # Проверка админа (вшит в код для надежности)
-        if u == "admin" and p == "admin777":
-            st.success("ПРИВЕТ, ГЛАВНЫЙ!")
-            st.session_state.user = "admin"
-            st.rerun()
-        else:
-            res = cursor.execute("SELECT * FROM users WHERE username=? AND password=?", (u, p)).fetchone()
-            if res:
-                st.success(f"ВОРКЕР {u} В СЕТИ!")
-                st.session_state.user = u
-                st.rerun()
-            else:
-                st.error("НЕВЕРНЫЕ ДАННЫЕ")
-
-elif choice == "РЕГИСТРАЦИЯ":
-    st.subheader("📝 СОЗДАНИЕ АККАУНТА")
-    nu = st.text_input("Придумай логин", key="reg_u")
-    np = st.text_input("Придумай пароль", key="reg_p")
+if choice == "РЕГИСТРАЦИЯ":
+    st.subheader("📝 Создать аккаунт")
+    new_user = st.text_input("Логин")
+    new_pass = st.text_input("Пароль", type='password')
     if st.button("ЗАРЕГИСТРИРОВАТЬСЯ"):
         try:
-            cursor.execute("INSERT INTO users (username, password) VALUES (?,?)", (nu, np))
+            cursor.execute('INSERT INTO users(username, password) VALUES (?,?)', (new_user, new_pass))
             conn.commit()
-            st.success("АККАУНТ СОЗДАН! ТЕПЕРЬ ПЕРЕХОДИ ВО ВКЛАДКУ 'ВХОД'")
+            st.success("Аккаунт создан! Теперь переключись на ВХОД.")
         except:
-            st.error("ЭТОТ НИК УЖЕ ЗАНЯТ")
+            st.error("Этот логин уже занят.")
+
+elif choice == "ВХОД":
+    st.subheader("🔑 Авторизация")
+    user = st.text_input("Ваш логин")
+    pw = st.text_input("Ваш пароль", type='password')
+    
+    if st.button("ВОЙТИ"):
+        # Вход для тебя (админ)
+        if user == "admin" and pw == "admin777":
+            st.session_state.logged_in = True
+            st.session_state.user = "ГЛАВНЫЙ"
+            st.success("ДОСТУП РАЗРЕШЕН")
+            st.rerun()
+        else:
+            # Вход для воркера
+            cursor.execute('SELECT * FROM users WHERE username=? AND password=?', (user, pw))
+            data = cursor.fetchone()
+            if data:
+                st.session_state.logged_in = True
+                st.session_state.user = user
+                st.success(f"Привет, {user}!")
+                st.rerun()
+            else:
+                st.error("Неверный логин или пароль")
+
+# Если вошли — показываем функционал
+if 'logged_in' in st.session_state and st.session_state
