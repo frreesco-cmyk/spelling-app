@@ -86,7 +86,7 @@ else:
                 mins = max(1, int(dur.total_seconds() / 60))
                 
                 # НАСТРОЙКА ОПЛАТЫ: например, 50 рублей за минуту
-                money = mins * 50 
+                money = mins * 0.01 
                 
                 dt = datetime.now().strftime("%d.%m %H:%M")
                 cursor.execute("INSERT INTO logs VALUES (?,?,?,?)", (user, str(dur).split('.')[0], dt, money))
@@ -141,3 +141,4 @@ else:
         with st.expander("📜 Мои последние выплаты"):
             my_l = pd.read_sql_query(f"SELECT date, duration, money_gain FROM logs WHERE user='{user}'", conn)
             st.table(my_l)
+
