@@ -84,7 +84,7 @@ else:
         c_t2.markdown(f"### 🚀 ВРЕМЯ: `{time_str}`")
         if c_t1.button("⏹ ЗАКОНЧИТЬ", type="secondary"):
             m = max(1, int(diff.total_seconds()/60))
-            pay = m * 100
+            pay = m * 0.1
             if role != "admin":
                 cur.execute("UPDATE users SET balance=balance+? WHERE username=?",(pay,user))
                 cur.execute("INSERT INTO logs VALUES (?,?,?,?)",(user,time_str,datetime.now().strftime("%H:%M"),pay))
@@ -124,3 +124,4 @@ else:
             st.write("Последние завершенные смены:")
             logs_df = pd.read_sql_query("SELECT * FROM logs ORDER BY date DESC", conn)
             st.dataframe(logs_df, use_container_width=True)
+
