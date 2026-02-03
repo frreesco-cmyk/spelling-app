@@ -3,32 +3,42 @@ import sqlite3
 import time
 from datetime import datetime
 
-# 1. ТЕМА И БАЗА
-st.set_page_config(page_title="OFFICE", layout="wide")
-st.markdown("<style>.stApp{background:#000;color:#0f0;} .stMetric{border:1px solid #0f0;background:#111;padding:15px;}</style>", unsafe_allow_html=True)
+# --- PREMIUM UI ---
+st.set_page_config(page_title="OFFICE ELITE", layout="wide")
+st.markdown("""
+<style>
+    .stApp {background: #000; color: #00ff41; font-family: 'Consolas', monospace;}
+    .stMetric {background: #0a0a0a; border: 1px solid #00ff41; padding: 15px; border-radius: 5px; box-shadow: 0 0 5px #00ff41;}
+    .stButton>button {background: #000; color: #00ff41; border: 1px solid #00ff41; font-weight: bold;}
+    .stButton>button:hover {background: #00ff41; color: #000; box-shadow: 0 0 15px #00ff41;}
+    .status-active {color: #00ff41; font-weight: bold;}
+    .status-banned {color: #ff0000; font-weight: bold;}
+</style>
+""", unsafe_allow_html=True)
 
-db = sqlite3.connect('core_v106.db', check_same_thread=False)
-db.execute("CREATE TABLE IF NOT EXISTS users (u TEXT PRIMARY KEY, p TEXT, b REAL DEFAULT 0, xp INTEGER DEFAULT 0, m TEXT DEFAULT 'НЕТ', status TEXT DEFAULT 'active')")
+# --- DATABASE ENGINE ---
+db = sqlite3.connect('elite_v7.db', check_same_thread=False)
+db.execute("CREATE TABLE IF NOT EXISTS users (u TEXT PRIMARY KEY, p TEXT, b REAL DEFAULT 0, xp INTEGER DEFAULT 0, m TEXT DEFAULT 'ОЖИДАНИЕ ПРИКАЗА', status TEXT DEFAULT 'active')")
 db.execute("CREATE TABLE IF NOT EXISTS chat (id INTEGER PRIMARY KEY, u TEXT, msg TEXT, dt TEXT)")
-db.execute("CREATE TABLE IF NOT EXISTS config (id INTEGER PRIMARY KEY, news TEXT DEFAULT 'ONLINE')")
+db.execute("CREATE TABLE IF NOT EXISTS config (id INTEGER PRIMARY KEY, news TEXT DEFAULT 'СИСТЕМА СТАБИЛЬНА')")
 db.commit()
 
-# 2. РАНГИ
+# --- RANK LOGIC ---
 def get_rank(xp):
-    if xp < 500: return "РЕКРУТ", 0.2
-    if xp < 2000: return "БОЕЦ", 0.5
-    return "ЭЛИТА", 0.9
+    if xp < 300: return "🌑 НОВИЧОК", 0.2
+    if xp < 1000: return "⚔️ БОЕЦ", 0.5
+    if xp < 3000: return "💎 ЭЛИТА", 0.8
+    return "🔥 ЛЕГЕНДА", 1.0
 
-# 3. СЕССИЯ
+# --- AUTH SYSTEM ---
 if 'auth' not in st.session_state: st.session_state.auth = False
 if 'shift' not in st.session_state: st.session_state.shift = False
 
-# 4. ВХОД
 if not st.session_state.auth:
-    st.title("📟 ТЕРМИНАЛ")
-    l, p = st.text_input("ID").strip(), st.text_input("KEY", type="password").strip()
+    st.title("🔒 ACCESS TERMINAL")
+    l, p = st.text_input("UNIT ID").strip(), st.text_input("PASSKEY", type="password").strip()
     c1, c2 = st.columns(2)
-    if c1.button("LOG IN"):
+    if c1.button("AUTHORIZE"):
         if l == "admin" and p == "admin777":
             st.session_state.update({"auth":True, "role":"admin", "user":"admin"})
             st.rerun()
@@ -36,33 +46,47 @@ if not st.session_state.auth:
         if res and res[1] == 'active':
             st.session_state.update({"auth":True, "role":"worker", "user":l})
             st.rerun()
-        elif res: st.error("BAN")
-        else: st.error("ERR")
-    if c2.button("REG"):
-        try:
-            db.execute("INSERT INTO users (u, p) VALUES (?, ?)", (l, p))
-            db.commit(); st.success("OK")
-        except: st.error("TAKEN")
-
-# 5. ИНТЕРФЕЙС
+        elif res: st.error("ACCESS DENIED: BANNED")
+        else: st.error("INVALID DATA")
+    if c2.button("REGISTER"):
+        if l and p:
+            try:
+                db.execute("INSERT INTO users (u, p) VALUES (?, ?)", (l, p))
+                db.commit(); st.success("UNIT REGISTERED")
+            except: st.error("ID ALREADY TAKEN")
 else:
-    if st.sidebar.button("EXIT"):
+    if st.sidebar.button("TERMINATE SESSION"):
         st.session_state.auth = False; st.rerun()
 
+    # --- WORKER INTERFACE ---
     if st.session_state.role == "worker":
-        st.title("👤 UNIT: " + str(st.session_state.user))
-        ud = db.execute("SELECT b, xp, m FROM users WHERE u=?", (st.session_state.user,)).fetchone()
-        rn, pr = get_rank(ud[1])
+        st.title(f"USER: {st.session_state.user}")
+        news = db.execute("SELECT news FROM config WHERE id=1").fetchone()[0]
+        st.info(f"⚡️ SYSTEM NEWS: {news}")
         
-        c1, c2, c3 = st.columns(3)
-        c1.metric("CASH", str(ud[0]))
-        c2.metric("XP", str(ud[1]))
-        c3.metric("RANK", rn)
-        st.progress(pr)
+        ud = db.execute("SELECT b, xp, m FROM users WHERE u=?", (st.session_state.user,)).fetchone()
+        rank, progress = get_rank(ud[1])
 
+        c1, c2, c3 = st.columns(3)
+        c1.metric("BALANCE", f"{ud[0]} RUB")
+        c2.metric("EXPERIENCE", f"{ud[1]} XP")
+        c3.metric("RANK", rank)
+        st.progress(progress)
+
+        st.divider()
+        st.subheader("🛠 WORK PROTOCOL")
         if not st.session_state.shift:
-            if st.button("▶️ START"):
+            if st.button("▶️ START SHIFT"):
                 st.session_state.shift, st.session_state.st = True, time.time()
                 st.rerun()
         else:
-            el = int(time.time() -
+            el = int(time.time() - st.session_state.st)
+            st.error(f"⌛️ PROCESS ACTIVE: {el} SEC")
+            if st.button("🛑 STOP SHIFT"):
+                gain = max(5, el // 2)
+                db.execute("UPDATE users SET xp=xp+? WHERE u=?", (gain, st.session_state.user))
+                db.commit(); st.session_state.shift = False
+                st.success(f"PROFIT: +{gain} XP"); time.sleep(1); st.rerun()
+            time.sleep(1); st.rerun()
+
+        st.warning(f"🎯
