@@ -1,139 +1,87 @@
 import streamlit as st
 import sqlite3
 
-# --- 1. ЧИСТАЯ НАСТРОЙКА ---
-st.set_page_config(page_title="GOD_MODE", layout="wide")
+# 1. ТЕМНАЯ ТЕМА
+st.set_page_config(page_title="SYSTEM", layout="wide")
+st.markdown("<style>.stApp{background:#000;color:#0f0;} input{background:#222!important;color:#0f0!important;}</style>", unsafe_allow_html=True)
 
-# Стили (Зеленый на черном)
-st.markdown("""
-<style>
-    .stApp {background-color: #000; color: #0f0;}
-    section[data-testid="stSidebar"] {background-color: #111;}
-    .stMetric {background-color: #111; border: 1px solid #0f0; padding: 10px;}
-    button {border: 1px solid #0f0 !important; color: #0f0 !important;}
-</style>
-""", unsafe_allow_html=True)
+# 2. ПОДКЛЮЧЕНИЕ БАЗЫ (НОВОЕ ИМЯ)
+conn = sqlite3.connect('base_v76.db', check_same_thread=False)
+conn.execute("CREATE TABLE IF NOT EXISTS users (u TEXT PRIMARY KEY, p TEXT, b REAL DEFAULT 0, r TEXT DEFAULT 'w', s TEXT DEFAULT 'a', m TEXT DEFAULT 'НЕТ')")
+conn.execute("CREATE TABLE IF NOT EXISTS news (id INTEGER PRIMARY KEY, t TEXT)")
+if not conn.execute("SELECT t FROM news WHERE id=1").fetchone():
+    conn.execute("INSERT INTO news (id, t) VALUES (1, 'СИСТЕМА ГОТОВА')")
+conn.commit()
 
-# --- 2. БАЗА (БЕЗ ВЫЛЕТОВ) ---
-def init_db():
-    conn = sqlite3.connect('final_v75.db', check_same_thread=False)
-    # Создаем таблицы
-    conn.execute("CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT, balance REAL DEFAULT 0, role TEXT DEFAULT 'worker', status TEXT DEFAULT 'active', message TEXT DEFAULT 'НЕТ ПРИКАЗОВ')")
-    conn.execute("CREATE TABLE IF NOT EXISTS global_cfg (id INTEGER PRIMARY KEY, news TEXT)")
-    # Проверка новостей
-    check = conn.execute("SELECT news FROM global_cfg WHERE id=1").fetchone()
-    if not check:
-        conn.execute("INSERT INTO global_cfg (id, news) VALUES (1, 'СИСТЕМА АКТИВИРОВАНА')")
-    conn.commit()
-    return conn
-
-db = init_db()
-
-# --- 3. ЛОГИКА ВХОДА ---
-if 'auth' not in st.session_state:
-    st.session_state.auth = False
+# 3. АВТОРИЗАЦИЯ
+if 'auth' not in st.session_state: st.session_state.auth = False
 
 if not st.session_state.auth:
-    st.title("📟 ВХОД В ТЕРМИНАЛ")
-    u = st.text_input("USER ID").strip()
-    p = st.text_input("PASSWORD", type="password").strip()
+    st.title("📟 ВХОД")
+    login = st.text_input("ЛОГИН").strip()
+    pas = st.text_input("ПАРОЛЬ", type="password").strip()
     
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("UPLINK (ВХОД)"):
-            if u == "admin" and p == "admin777":
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("ВОЙТИ"):
+            if login == "admin" and pas == "admin777":
                 st.session_state.update({"auth":True, "user":"admin", "role":"admin"})
                 st.rerun()
             else:
-                user_data = db.execute("SELECT status, role FROM users WHERE username=? AND password=?", (u, p)).fetchone()
-                if user_data:
-                    if user_data[0] != 'banned':
-                        st.session_state.update({"auth":True, "user":u, "role":"worker"})
-                        st.rerun()
-                    else: st.error("TERMINATED (БАН)")
-                else: st.error("ACCESS DENIED")
-    with c2:
-        if st.button("CREATE (РЕГ)"):
-            if u and p:
+                data = conn.execute("SELECT s, r FROM users WHERE u=? AND p=?", (login, pas)).fetchone()
+                if data and data[0] != 'banned':
+                    st.session_state.update({"auth":True, "user":login, "role":"worker"})
+                    st.rerun()
+                else: st.error("ОТКАЗАНО")
+    with col2:
+        if st.button("РЕГИСТРАЦИЯ"):
+            if login and pas:
                 try:
-                    db.execute("INSERT INTO users (username, password) VALUES (?, ?)", (u, p))
-                    db.commit()
-                    st.success("SUCCESS")
-                except: st.error("ID EXISTS")
+                    conn.execute("INSERT INTO users (u, p) VALUES (?, ?)", (login, pas))
+                    conn.commit()
+                    st.success("ГОТОВО")
+                组织 = st.error("ЗАНЯТО")
 
-# --- 4. РАБОЧАЯ ЗОНА ---
+# 4. РАБОЧАЯ ОБЛАСТЬ
 else:
-    user = st.session_state.user
-    role = st.session_state.role
+    u_name = st.session_state.user
+    u_role = st.session_state.role
     
-    if st.sidebar.button("EXIT"):
+    if st.sidebar.button("ВЫХОД"):
         st.session_state.auth = False
         st.rerun()
 
-    # --- ИНТЕРФЕЙС ВОРКЕРА ---
-    if role == "worker":
-        st.title(f"UNIT: {user}")
+    if u_role == "worker":
+        st.title(f"ЮНИТ: {u_name}")
+        gn = conn.execute("SELECT t FROM news WHERE id=1").fetchone()[0]
+        st.info(f"ОБЩЕЕ: {gn}")
         
-        # Глобальное сообщение
-        gn = db.execute("SELECT news FROM global_cfg WHERE id=1").fetchone()
-        st.info(f"📢 ГЛОБАЛЬНО: {gn[0] if gn else '---'}")
-        
-        # Данные юзера
-        ud = db.execute("SELECT balance, message FROM users WHERE username=?", (user,)).fetchone()
+        ud = conn.execute("SELECT b, m FROM users WHERE u=?", (u_name,)).fetchone()
         if ud:
-            st.metric("ВАШ СЧЕТ", f"{ud[0]} RUB")
-            st.warning(f"📩 ПРИКАЗ: {ud[1]}")
-        else:
-            st.error("ОШИБКА ДАННЫХ")
+            st.metric("БАЛАНС", f"{ud[0]} руб")
+            st.warning(f"ПРИКАЗ: {ud[1]}")
 
-    # --- ИНТЕРФЕЙС АДМИНА ---
     else:
-        st.title("👑 GOD CONTROL PANEL")
+        st.title("👑 АДМИН ПАНЕЛЬ")
         
         # Общая новость
-        current_g = db.execute("SELECT news FROM global_cfg WHERE id=1").fetchone()
-        new_g = st.text_input("ОБЩЕЕ ОБЪЯВЛЕНИЕ", value=current_g[0] if current_g else "")
-        if st.button("ОБНОВИТЬ ДЛЯ ВСЕХ"):
-            db.execute("UPDATE global_cfg SET news=? WHERE id=1", (new_g,))
-            db.commit()
+        curr_n = conn.execute("SELECT t FROM news WHERE id=1").fetchone()[0]
+        new_n = st.text_input("ОБЩЕЕ ОБЪЯВЛЕНИЕ", value=curr_n)
+        if st.button("ОБНОВИТЬ НОВОСТЬ"):
+            conn.execute("UPDATE news SET t=? WHERE id=1", (new_n,))
+            conn.commit()
             st.rerun()
 
         st.divider()
-        st.subheader("СПИСОК ЮНИТОВ")
         
         # Список воркеров
-        rows = db.execute("SELECT username, balance, status, message FROM users WHERE role='worker'").fetchall()
+        workers = conn.execute("SELECT u, b, s, m FROM users WHERE r='w'").fetchall()
+        if not workers: st.write("НЕТ ЮЗЕРОВ. ЗАРЕГАЙ КОГО-НИБУДЬ.")
         
-        if not rows:
-            st.write("НЕТ ЗАРЕГИСТРИРОВАННЫХ ЮНИТОВ")
-        
-        for un, ub, us, um in rows:
-            with st.expander(f"👤 {un} | {ub} руб | {us}"):
+        for w_u, w_b, w_s, w_m in workers:
+            with st.expander(f"👤 {w_u} | {w_b} руб | {w_s}"):
                 # Баланс
-                nb = st.number_input(f"Сумма для {un}", value=float(ub), key=f"b{un}")
-                if st.button(f"ИЗМЕНИТЬ БАЛАНС {un}", key=f"btnb{un}"):
-                    db.execute("UPDATE users SET balance=? WHERE username=?", (nb, un))
-                    db.commit()
-                    st.rerun()
-                
-                # Сообщение
-                nm = st.text_area(f"Приказ для {un}", value=um, key=f"m{un}")
-                if st.button(f"ОТПРАВИТЬ ПРИКАЗ {un}", key=f"btnm{un}"):
-                    db.execute("UPDATE users SET message=? WHERE username=?", (nm, un))
-                    db.commit()
-                    st.rerun()
-
-                # Управление
-                c1, c2 = st.columns(2)
-                with c1:
-                    status_text = "РАЗБАНИТЬ" if us == 'banned' else "ЗАБАНИТЬ"
-                    if st.button(f"{status_text} {un}", key=f"s{un}"):
-                        new_s = 'active' if us == 'banned' else 'banned'
-                        db.execute("UPDATE users SET status=? WHERE username=?", (new_s, un))
-                        db.commit()
-                        st.rerun()
-                with c2:
-                    if st.button(f"УДАЛИТЬ {un}", key=f"d{un}"):
-                        db.execute("DELETE FROM users WHERE username=?", (un,))
-                        db.commit()
-                        st.rerun()
+                nb = st.number_input(f"Баланс {w_u}", value=float(w_b), key=f"b{w_u}")
+                if st.button(f"ИЗМЕНИТЬ ДЕНЬГИ {w_u}"):
+                    conn.execute("UPDATE users SET b=? WHERE u=?", (nb, w_u))
+                    conn.commit
